@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics.Tracing;
 using UnityEngine;
 
 /// <summary>
@@ -12,12 +13,21 @@ public class Character : MonoBehaviour
     [SerializeField] int _charId = 1; //変えないこと
     [SerializeField] int _hp = 100;
     [SerializeField] int _criRate = 80;
+    [SerializeField] int _counterCount = 10;
     [SerializeField] float _moveInterval = 1.0f;
+    [SerializeField] float _counterTime = 2.0f;
+    [SerializeField] float _counterBulletTime = 0.5f;
     [SerializeField] GameObject _head;
+    [SerializeField] PlayerShooter _shooter;
+    [SerializeField] Character _enemyChara;
+    [SerializeField] bool _counterBool;
+    [SerializeField] Color _counterColor;
+    [SerializeField] Color _normalColor;
 
     Vector3 _initialPos;
     Rigidbody _rbody;
     float _moveTimer = 0.0f;
+    Renderer _headRenderer;
 
     public Vector3 HeadPos => _head.transform.position;
 
@@ -27,9 +37,11 @@ public class Character : MonoBehaviour
 
     private void Awake()
     {
+        _headRenderer = GetComponent<Renderer>();
         _rbody = GetComponent<Rigidbody>();
         MaxHP = _hp;
         _initialPos = transform.position;
+        _headRenderer.material.color = _normalColor;
     }
 
     public void SetLifeChangeDelegate(LifeChange dlg)
@@ -43,8 +55,16 @@ public class Character : MonoBehaviour
     /// <param name="dmg"></param>
     public void Damage(int dmg)
     {
+        if (GameController.IsGameOver) return;
+        EffectManager.PlayEffect("Hit", transform);
+        int damagedown = 1;
+        if (_counterBool)
+        {
+            StartCoroutine(Counter());
+            damagedown = 2;
+        }
         DamagePopup.Pop(gameObject, dmg, Color.red);
-        _hp -= dmg;
+        _hp -= dmg / damagedown;
         _lifeChange?.Invoke(dmg);
 
         if (_hp <= 0)
@@ -90,6 +110,8 @@ public class Character : MonoBehaviour
             if (Input.GetKeyDown(KeyCode.DownArrow)) Move(new Vector2(0, -1));
             if (Input.GetKeyDown(KeyCode.LeftArrow)) Move(new Vector2(-1, 0));
             if (Input.GetKeyDown(KeyCode.RightArrow)) Move(new Vector2(1, 0));
+            if (Input.GetKeyDown(KeyCode.RightShift)) _shooter.Shooter();
+            if (Input.GetKeyDown(KeyCode.RightControl) && !_counterBool) CounterStand();
         }
 
         if (_charId == 2)
@@ -98,6 +120,44 @@ public class Character : MonoBehaviour
             if (Input.GetKeyDown(KeyCode.S)) Move(new Vector2(0, -1));
             if (Input.GetKeyDown(KeyCode.A)) Move(new Vector2(-1, 0));
             if (Input.GetKeyDown(KeyCode.D)) Move(new Vector2(1, 0));
+            if (Input.GetKeyDown(KeyCode.LeftShift)) _shooter.Shooter();
+            if (Input.GetKeyDown(KeyCode.LeftControl) && !_counterBool) CounterStand();
+        }
+    }
+
+    public void CounterStand()
+    {
+        _counterBool = true;
+        _headRenderer.material.color = _counterColor;
+        StartCoroutine(CounterTime());
+    }
+
+    IEnumerator CounterTime()
+    {
+        yield return new WaitForSeconds(_counterTime);
+        _counterBool = false;
+        _headRenderer.material.color = _normalColor;
+    }
+
+    IEnumerator Counter()
+    {
+        _counterBool = false;
+        _headRenderer.material.color = _normalColor;
+        var x = 0;var z = 0;
+        while(x == 0 && z == 0)
+        {
+            x = Random.Range(-1, 1);
+            z = Random.Range(-1, 1);
+        }
+        Vector2 vec = new Vector2(-(transform.position.x - _enemyChara.transform.position.x) + x,
+            -(transform.position.z - _enemyChara.transform.position.z) + z);
+        vec.x = (int)vec.x + 1;
+        vec.y = (int)vec.y;
+        Move(vec);
+        for (var i = 0;i < _counterCount;i++)
+        {
+            yield return new WaitForSeconds(_counterBulletTime);
+            _shooter.Counter(_enemyChara);
         }
     }
 
@@ -128,13 +188,17 @@ public class Character : MonoBehaviour
         y = y - y % 2.0f;
 
         //移動
-        transform.position = _initialPos + new Vector3(x + dir.x * 2.0f, pos.y, y + dir.y * 2.0f);
+        transform.position = _initialPos + new Vector3(x + dir.x * 2.0f, pos.y + 2, y + dir.y * 2.0f);
 
         _moveTimer = _moveInterval;
     }
 
-    private void OnCollisionEnter(Collision collision)
+    private void OnTriggerEnter(Collider other)
     {
-
+        if(other.gameObject.tag == "Respawn")
+        {
+            Damage(-100);
+            Destroy(other.gameObject);
+        }
     }
 }

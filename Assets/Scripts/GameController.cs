@@ -13,6 +13,7 @@ using UnityEngine.UI;
 public class GameController : MonoBehaviour
 {
     [SerializeField] Text _text;
+    [SerializeField] Canvas _title;
     static GameController _instance = null;
     static public GameController Instance => _instance;
 
@@ -21,10 +22,10 @@ public class GameController : MonoBehaviour
         InGame,
         Result
     }
-    GameState _state = GameState.InGame;
+    GameState _state = GameState.Result;
 
     static public GameState State => _instance._state;
-    static public bool IsGameOver => _instance._state == GameState.Result;
+    static public bool IsGameOver => State == GameState.Result;
 
     void Awake()
     {
@@ -35,7 +36,7 @@ public class GameController : MonoBehaviour
     {
         if (!IsGameOver) return;
 
-        if (Input.GetButtonDown("Fire1"))
+        if (Input.GetKeyDown(KeyCode.Space))
         {
             Restart();
         }
@@ -60,5 +61,11 @@ public class GameController : MonoBehaviour
     public void Restart()
     {
         SceneManager.LoadScene(0);
+    }
+
+    public void GameStart()
+    {
+        _state = GameState.InGame;
+        _title.enabled = false;
     }
 }
